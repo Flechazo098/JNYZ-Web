@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en"> <head>
+    <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动漫日历</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://libs.baidu.com/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.0.0/crypto-js.min.js"></script>
+
+
+    <style>
+        :root {
+            --smooth: all 0.3s ease-in-out;
+            --border: 1px solid transparent;
+        }
+
+        body {
+            background: conic-gradient(from 90deg, #3e7e89, #dfe187, #3e7e89);
+            background-size: 200% 200%;
+            margin: 0;
+            max-height: 80vh;
+            overflow-y: auto;
+            font-family: Arial, sans-serif;
+            animation: rotateGradient 5s infinite linear;
+        }
+        @keyframes rotateGradient { 0% { background-position: 0% 0%; background: conic-gradient(from 90deg, #3e7e89, #dfe187, #3e7e89); } 100% { background-position: 100% 100%; background: conic-gradient(from 450deg, #3e7e89, #dfe187, #3e7e89); } } .grid { display: grid; width: 90%; max-width: 1800px; min-height: 1000px; grid-template-columns: repeat(6, 2fr); gap: 5px; margin: 20px auto; }
+        .item {
+            background: #141414;
+            border-radius: 8px;
+            border: var(--border);
+            position: relative;
+            transition: var(--smooth);
+            overflow: hidden;
+            height: 100px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: flex-start;
+        }
+
+        .item::after {
+            content: attr(data-date);
+            color: #fff;
+            font-family: Jost, sans-serif;
+            font-weight: bold;
+            font-size: 2rem;
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 1;
+        }
+
+        .item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: var(--smooth);
+            filter: grayscale(1);
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        .item.has-image {
+            grid-column: span 1; /* 确保图片占用1列 */
+            grid-row: span 1;    /* 确保图片占用1行 */
+        }
+
+        .item:hover img {
+            filter: grayscale(0);
+        }
+
+        .highlight {
+            background-color: #ff6347;
+            box-shadow: 0 0 32px 2px rgba(255, 99, 71, 0.6);
+        }
+
+        .item:hover {
+            box-shadow: 0 0 32px 2px rgba(255, 255, 255, 0.2);
+        }
+
+        /* 鼠标悬停效果 */
+        .item:hover:not(.has-image) {
+            box-shadow: 0 0 16px 4px #eb507e;
+        }
+
+        .item.has-image:hover {
+            box-shadow: 0 0 32px 6px rgba(255, 215, 0, 0.8);
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f9c7f4, #bcfff3);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            text-align: center;
+        }
+
+        .modal button {
+            margin: 5px;
+            padding: 10px 15px;
+            background-color: #222;
+            color: #fff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .modal button:hover {
+            background-color: #555;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: none;
+            border: none;
+            color: #ff0000;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+        .diary-modal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            padding: 20px;
+            background: linear-gradient(135deg, #f9c7f4, #bcfff3);
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            text-align: center;
+        }
+        .diary-modal textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+        }
+        .diary-modal button {
+            padding: 5px 10px;
+        }
+
+        /* 日期和月份的选择器样式 */
+        .date-selector {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .date-selector span {
+            cursor: pointer;
+            font-size: 1.5rem;
+        }
+        /* 校徽样式 */
+        #schoolBadge {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 200px;
+            height: auto;
+            z-index: 1;
+}
+        .grid {
+            display: grid;
+            width: 90%;
+            max-width: 1800px;
+            max-height: 1000px;
+            grid-template-columns: repeat(6, 2fr);
+            gap: 5px;
+            margin: 25px auto; /* 调整顶部边距，使日历向下移动 */
+}
+    </style>
+</head>
+<body>
+<img id="schoolBadge" src="img/schoolBadge.png" alt="Top Left Image">
+<!-- 年份与月份选择器 -->
+<div class="date-selector">
+    <span id="prevYear"><--</span>
+    <span id="currentYearMonth"></span>
+    <span id="nextYear">--></span>
+</div>
+<div class="grid" id="calendarGrid"></div>
+
+<!--模态框 -->
+<div class="modal" id="modal">
+    <button class="close-modal" id="closeModal">×</button>
+    <button id="addImage">添加图片</button>
+    <button id="updateImage" style="display: none;">更改图片</button>
+    <button id="removeImage" style="display: none;">删除图片</button>
+</div>
+<input type="file" id="fileInput" accept="image/*" style="display:none;" />
+
+
+<script>
+    const now = new Date();
+const currentDay = now.getDate();
+let currentMonth = now.getMonth() + 1;
+let currentYear = now.getFullYear();
+const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+const calendarGrid = document.getElementById('calendarGrid');
+const fileInput = document.getElementById('fileInput');
+const modal = document.getElementById('modal');
+let selectedItem = null;
+
+    function loadCalendar(year, month) {
+        document.getElementById('currentYearMonth').innerText = `${year}年${month}月`;
+        calendarGrid.innerHTML = ''; // 清空之前的日历项
+
+        // 加载图片元数据并显示图片
+        fetch(`http://localhost:3000/metadata/${year}/${month}`)
+            .then(response => response.json())
+            .then(metadata => {
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const item = document.createElement('div');
+                    item.classList.add('item');
+                    item.setAttribute('data-date', day);
+                    if (day === currentDay && year === now.getFullYear() && month === now.getMonth() + 1) {
+                        item.classList.add('highlight');
+                    }
+                    if (metadata[day]) {
+                        const img = document.createElement('img');
+                        img.src = `http://localhost:3000/pic/${metadata[day]}`;
+                        img.style.objectFit = 'cover';
+                        img.style.width = '100%';
+                        img.style.height = '100%';
+                        item.appendChild(img);
+                        item.classList.add('has-image');
+                    }
+                    item.addEventListener('click', function () {
+                        selectedItem = item;
+                        const hasImage = item.querySelector('img') !== null;
+                        document.getElementById('addImage').style.display = hasImage ? 'none' : 'inline-block';
+                        document.getElementById('updateImage').style.display = hasImage ? 'inline-block' : 'none';
+                        document.getElementById('removeImage').style.display = hasImage ? 'inline-block' : 'none';
+                        modal.style.display = 'block';
+                    });
+                    calendarGrid.appendChild(item);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+    }
+    // 初始加载当前月份的日历
+    loadCalendar(currentYear, currentMonth);
+
+    // 切换月份
+    document.getElementById('prevYear').addEventListener('click', function () {
+        if (currentMonth > 1) {
+            currentMonth--;
+        } else {
+            currentMonth = 12;
+            currentYear--;
+        }
+        loadCalendar(currentYear, currentMonth);
+    });
+
+    document.getElementById('nextYear').addEventListener('click', function () {
+        if (currentMonth < 12) {
+            currentMonth++;
+        } else {
+            currentMonth = 1;
+            currentYear++;
+        }
+        loadCalendar(currentYear, currentMonth);
+    });
+
+    fileInput.addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (file && selectedItem) {
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('year', currentYear); // 添加 year 参数
+            formData.append('month', currentMonth); // 添加 month 参数
+            formData.append('date', selectedItem.getAttribute('data-date')); // 添加 date 参数
+
+            // 上传图片到服务器
+            fetch('http://localhost:3000/upload', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Network response was not ok: ${response.status} ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const img = document.createElement('img');
+                    img.src = `http://localhost:3000/pic/${data.filename}`; // 更新为实际路径
+                    img.style.objectFit = 'cover';
+                    img.style.width = '100%';
+                    img.style.height = '100%';
+                    selectedItem.innerHTML = '';
+                    selectedItem.appendChild(img);
+                    selectedItem.classList.add('has-image');
+                    modal.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Upload error:', error);  // 输出更详细的错误信息
+                    alert('图片上传失败，请稍后再试。');
+                })
+        }
+    });
+
+    document.getElementById('closeModal').addEventListener('click', function () {
+        modal.style.display = 'none';
+    });
+
+    window.addEventListener('click', function (event) {
+        if (event.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
+
+    document.getElementById('addImage').addEventListener('click', function () {
+        fileInput.click();
+    });
+
+    document.getElementById('updateImage').addEventListener('click', function () {
+        fileInput.click();
+    });
+
+    document.getElementById('removeImage').addEventListener('click', function () {
+        if (selectedItem) {
+            const date = selectedItem.getAttribute('data-date');
+
+            // 调用删除图片的API
+            fetch('http://localhost:3000/delete', {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    year: currentYear,
+                    month: currentMonth,
+                    date: date
+                })
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    selectedItem.innerHTML = '';
+                    selectedItem.classList.remove('has-image');
+                    modal.style.display = 'none';
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+
+</script>
+</body> </html>
